@@ -14,7 +14,7 @@ contract EchidnaDelayedClaimableGovernor is DelayedClaimableGovernor {
         ClaimableGovernor(_governorAddr)
     {
         require(_delay > 0, "Delay must be greater than zero");
-        address _governorAddr = address(0x1);
+        _governorAddr = address(0x1);
         delay = _delay;
     }
 
@@ -23,7 +23,7 @@ contract EchidnaDelayedClaimableGovernor is DelayedClaimableGovernor {
     } 
 
     function echidna_now_does_not_exceed_return() public returns (bool) {
-        return (now >= (requestTime.add(delay))
+        return (now >= (requestTime.add(delay)));
     }
 
 }

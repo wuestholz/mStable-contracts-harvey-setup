@@ -185,7 +185,7 @@ contract EchidnaMasset1 is EchidnaERC20 {
     }
 
 	function echidna_amount_to_mint_under_total_supply() public returns (bool) {
-		return (amountToMint <= totalSupply())
+		return (amountToMint <= totalSupply());
 	}
 
 }

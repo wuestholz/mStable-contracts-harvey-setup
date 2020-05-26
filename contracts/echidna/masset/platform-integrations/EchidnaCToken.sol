@@ -176,5 +176,4 @@ contract EchidnaCToken is ICERC20, ERC20Mintable {
 		return transfer_other;
 	}
 
-}	}
 }
