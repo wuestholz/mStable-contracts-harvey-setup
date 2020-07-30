@@ -42,6 +42,8 @@ const c_MockERC20WithFee = artifacts.require("MockERC20WithFee");
 const c_MockERC20 = artifacts.require("MockERC20");
 const c_MockUSDT = artifacts.require("MockUSDT");
 
+const c_harveySetup = artifacts.require("HarveySetup");
+
 export interface MassetDetails {
     mAsset?: t.MassetInstance;
     forgeValidator?: t.ForgeValidatorInstance;
@@ -218,6 +220,12 @@ export class MassetMachine {
             d_DelayedProxyAdmin.address,
             initializationData_BasketManager,
         );
+
+        const d_harveySetup = await c_harveySetup.new({
+            from: this.system.sa.default,
+            value: "10000000000000000000",
+        });
+        await d_harveySetup.run(d_AaveIntegrationProxy.address, d_CompoundIntegrationProxy.address, d_mUSDProxy.address, d_BasketManagerProxy.address, bassetDetails.bAssets[0].address, bassetDetails.bAssets[1].address, bassetDetails.bAssets[2].address, bassetDetails.bAssets[3].address);
 
         return md;
     }

@@ -38,6 +38,50 @@ contract Masset is
 {
     using StableMath for uint256;
 
+    struct AssertionFailedHelper { uint256 magic; }
+
+    bool private checkingEnabled;
+
+    address private basset_1;
+    address private basset_2;
+    address private basset_3;
+    address private basset_4;
+
+    function enableChecking(address _basset_1, address _basset_2, address _basset_3, address _basset_4) public {
+        require(!checkingEnabled);
+        checkingEnabled = true;
+        basset_1 = _basset_1;
+        basset_2 = _basset_2;
+        basset_3 = _basset_3;
+        basset_4 = _basset_4;
+        bool p = evalP1();
+        require(p);
+    }
+
+    function evalP1() internal returns (bool) {
+        if (!checkingEnabled || address(basketManager) == address(0)) {
+            return true;
+        }
+        Basket memory basket = basketManager.getBasket();
+        Basset[] memory bAssets = basket.bassets;
+        uint256 bAssetCount = basket.bassets.length;
+        uint256 totBal;
+        for (uint256 i = 0; i < bAssetCount; i++) {
+            Basset memory b = bAssets[i];
+            totBal = totBal + (b.vaultBalance * b.ratio);
+        }
+        return (totalSupply() * 1e8 * basket.collateralisationRatio) <= (totBal * 1e18);
+    }
+
+    function checkP1() internal {
+        // P1
+        bool p = evalP1();
+        if (!p) {
+            { AssertionFailedHelper memory helper; helper.magic = 0xcafecafecafecafecafecafecafecafecafecafecafecafecafecafecafe0000 + 1; }
+            // assert(false);
+        }
+    }
+
     // Forging Events
     event Minted(address indexed minter, address recipient, uint256 mAssetQuantity, address bAsset, uint256 bAssetQuantity);
     event MintedMulti(address indexed minter, address recipient, uint256 mAssetQuantity, address[] bAssets, uint256[] bAssetQuantities);
@@ -83,6 +127,7 @@ contract Masset is
 
         MAX_FEE = 2e16;
         swapFee = 4e15;
+        checkP1();
     }
 
     /**
@@ -113,7 +158,21 @@ contract Masset is
         nonReentrant
         returns (uint256 massetMinted)
     {
-        return _mintTo(_bAsset, _bAssetQuantity, msg.sender);
+        require(
+            !checkingEnabled || _bAsset == 0x0000000000000000000000000000000000000000 || _bAsset == basset_1 || _bAsset == basset_2 || _bAsset == basset_3 || _bAsset == basset_4
+        );
+        uint256 ratio = basketManager.getBassetRatio(_bAsset);
+        uint256 oldSum = (ratio * IERC20(_bAsset).balanceOf(msg.sender)) + (balanceOf(msg.sender) * 1e8);
+
+        massetMinted = _mintTo(_bAsset, _bAssetQuantity, msg.sender);
+        checkP1();
+        basketManager.checkP2P5();
+        // P3
+        uint256 sum = (ratio * IERC20(_bAsset).balanceOf(msg.sender)) + (balanceOf(msg.sender) * 1e8);
+        if (!(sum <= oldSum)) {
+            { AssertionFailedHelper memory helper; helper.magic = 0xcafecafecafecafecafecafecafecafecafecafecafecafecafecafecafe0000 + 3; }
+            // assert(false);
+        }
     }
 
     /**
@@ -133,7 +192,22 @@ contract Masset is
         nonReentrant
         returns (uint256 massetMinted)
     {
-        return _mintTo(_bAsset, _bAssetQuantity, _recipient);
+        require(!checkingEnabled || _recipient == 0xafFEaFFEAFfeAfFEAffeaFfEAfFEaffeafFeAFfE || _recipient == 0xAaaaAaAAaaaAAaAAaAaaaaAAAAAaAaaaAaAaaAA0 || _recipient == 0xAaAAAaaAAAAAAaaAAAaaaaAaAaAAAAaAAaAaAaA1 || _recipient == 0xAaAaaAAAaAaaAaAaAaaAAaAaAAAAAaAAAaaAaAa2 || _recipient == 0x0000000000000000000000000000000000000000);
+        require(
+            !checkingEnabled || _bAsset == 0x0000000000000000000000000000000000000000 || _bAsset == basset_1 || _bAsset == basset_2 || _bAsset == basset_3 || _bAsset == basset_4
+        );
+        uint256 ratio = basketManager.getBassetRatio(_bAsset);
+        uint256 oldSum = (ratio * IERC20(_bAsset).balanceOf(msg.sender)) + (balanceOf(_recipient) * 1e8);
+
+        massetMinted = _mintTo(_bAsset, _bAssetQuantity, _recipient);
+        checkP1();
+        basketManager.checkP2P5();
+        // P3
+        uint256 sum = (ratio * IERC20(_bAsset).balanceOf(msg.sender)) + (balanceOf(_recipient) * 1e8);
+        if (!(sum <= oldSum)) {
+            { AssertionFailedHelper memory helper; helper.magic = 0xcafecafecafecafecafecafecafecafecafecafecafecafecafecafecafe0000 + 3; }
+            // assert(false);
+        }
     }
 
     /**
@@ -154,7 +228,10 @@ contract Masset is
         nonReentrant
         returns(uint256 massetMinted)
     {
-        return _mintTo(_bAssets, _bAssetQuantity, _recipient);
+        require(!checkingEnabled || _recipient == 0xafFEaFFEAFfeAfFEAffeaFfEAfFEaffeafFeAFfE || _recipient == 0xAaaaAaAAaaaAAaAAaAaaaaAAAAAaAaaaAaAaaAA0 || _recipient == 0xAaAAAaaAAAAAAaaAAAaaaaAaAaAAAAaAAaAaAaA1 || _recipient == 0xAaAaaAAAaAaaAaAaAaaAAaAaAAAAAaAAAaaAaAa2 || _recipient == 0x0000000000000000000000000000000000000000);
+        massetMinted = _mintTo(_bAssets, _bAssetQuantity, _recipient);
+        checkP1();
+        basketManager.checkP2P5();
     }
 
     /***************************************
@@ -172,6 +249,9 @@ contract Masset is
     {
         require(_recipient != address(0), "Must be a valid recipient");
         require(_bAssetQuantity > 0, "Quantity must not be 0");
+        require(
+            !checkingEnabled || _bAsset == 0x0000000000000000000000000000000000000000 || _bAsset == basset_1 || _bAsset == basset_2 || _bAsset == basset_3 || _bAsset == basset_4
+        );
 
         (bool isValid, BassetDetails memory bInfo) = basketManager.prepareForgeBasset(_bAsset, _bAssetQuantity, true);
         if(!isValid) return 0;
@@ -280,6 +360,14 @@ contract Masset is
                 SWAP (PUBLIC)
     ****************************************/
 
+    struct vars0 {
+        uint256 inRatio;
+        uint256 outRatio;
+        uint256 oldSum;
+        uint256 sum;
+        uint256 quantitySwappedIn;
+    }
+
     /**
      * @dev Simply swaps one bAsset for another bAsset or this mAsset at a 1:1 ratio.
      * bAsset <> bAsset swaps will incur a small fee (swapFee()). Swap
@@ -304,11 +392,33 @@ contract Masset is
         require(_input != _output, "Cannot swap the same asset");
         require(_recipient != address(0), "Missing recipient address");
         require(_quantity > 0, "Invalid quantity");
+        require(!checkingEnabled || _recipient == 0xafFEaFFEAFfeAfFEAffeaFfEAfFEaffeafFeAFfE || _recipient == 0xAaaaAaAAaaaAAaAAaAaaaaAAAAAaAaaaAaAaaAA0 || _recipient == 0xAaAAAaaAAAAAAaaAAAaaaaAaAaAAAAaAAaAaAaA1 || _recipient == 0xAaAaaAAAaAaaAaAaAaaAAaAaAAAAAaAAAaaAaAa2 || _recipient == 0x0000000000000000000000000000000000000000);
+        require(
+            !checkingEnabled || _input == 0x0000000000000000000000000000000000000000 || _input == address(this) || _input == basset_1 || _input == basset_2 || _input == basset_3 || _input == basset_4
+        );
+        require(
+            !checkingEnabled || _input == 0x0000000000000000000000000000000000000000 || _output == address(this) || _output == basset_1 || _output == basset_2 || _output == basset_3 || _output == basset_4
+        );
+
+        vars0 memory _v;
+        _v.inRatio = basketManager.getBassetRatio(_input);
 
         // 1. If the output is this mAsset, just mint
         if(_output == address(this)){
-            return _mintTo(_input, _quantity, _recipient);
+            _v.oldSum = (_v.inRatio * IERC20(_input).balanceOf(msg.sender)) + (balanceOf(_recipient) * 1e8);
+            output = _mintTo(_input, _quantity, _recipient);
+            checkP1();
+            basketManager.checkP2P5();
+            // P3
+            _v.sum = (_v.inRatio * IERC20(_input).balanceOf(msg.sender) + (balanceOf(_recipient) * 1e8));
+            if (!(_v.sum <= _v.oldSum)) {
+                { AssertionFailedHelper memory helper; helper.magic = 0xcafecafecafecafecafecafecafecafecafecafecafecafecafecafecafe0000 + 3; }
+                // assert(false);
+            }
+            return output;
         }
+        _v.outRatio = basketManager.getBassetRatio(_output);
+        _v.oldSum = (_v.inRatio * IERC20(_input).balanceOf(msg.sender)) + (_v.outRatio * IERC20(_output).balanceOf(_recipient));
 
         // 2. Grab all relevant info from the Manager
         (bool isValid, string memory reason, BassetDetails memory inputDetails, BassetDetails memory outputDetails) =
@@ -316,13 +426,13 @@ contract Masset is
         require(isValid, reason);
 
         // 3. Deposit the input tokens
-        uint256 quantitySwappedIn = _depositTokens(_input, inputDetails.integrator, inputDetails.bAsset.isTransferFeeCharged, _quantity);
+        _v.quantitySwappedIn = _depositTokens(_input, inputDetails.integrator, inputDetails.bAsset.isTransferFeeCharged, _quantity);
         // 3.1. Update the input balance
-        basketManager.increaseVaultBalance(inputDetails.index, inputDetails.integrator, quantitySwappedIn);
+        basketManager.increaseVaultBalance(inputDetails.index, inputDetails.integrator, _v.quantitySwappedIn);
 
         // 4. Validate the swap
         (bool swapValid, string memory swapValidityReason, uint256 swapOutput, bool applySwapFee) =
-            forgeValidator.validateSwap(totalSupply(), inputDetails.bAsset, outputDetails.bAsset, quantitySwappedIn);
+            forgeValidator.validateSwap(totalSupply(), inputDetails.bAsset, outputDetails.bAsset, _v.quantitySwappedIn);
         require(swapValid, swapValidityReason);
 
         // 5. Settle the swap
@@ -338,6 +448,14 @@ contract Masset is
         output = swapOutput;
 
         emit Swapped(msg.sender, _input, _output, swapOutput, _recipient);
+        checkP1();
+        basketManager.checkP2P5();
+        // P3
+        _v.sum = (_v.inRatio * IERC20(_input).balanceOf(msg.sender)) + (_v.outRatio * IERC20(_output).balanceOf(_recipient));
+        if (!(_v.sum <= _v.oldSum)) {
+            { AssertionFailedHelper memory helper; helper.magic = 0xcafecafecafecafecafecafecafecafecafecafecafecafecafecafecafe0000 + 3; }
+            // assert(false);
+        }
     }
 
     /**
@@ -361,6 +479,12 @@ contract Masset is
     {
         require(_input != address(0) && _output != address(0), "Invalid swap asset addresses");
         require(_input != _output, "Cannot swap the same asset");
+        require(
+            !checkingEnabled || _input == 0x0000000000000000000000000000000000000000 || _input == address(this) || _input == basset_1 || _input == basset_2 || _input == basset_3 || _input == basset_4
+        );
+        require(
+            !checkingEnabled || _input == 0x0000000000000000000000000000000000000000 || _output == address(this) || _output == basset_1 || _output == basset_2 || _output == basset_3 || _output == basset_4
+        );
 
         bool isMint = _output == address(this);
         uint256 quantity = _quantity;
@@ -418,7 +542,21 @@ contract Masset is
         nonReentrant
         returns (uint256 massetRedeemed)
     {
-        return _redeemTo(_bAsset, _bAssetQuantity, msg.sender);
+        require(
+            !checkingEnabled || _bAsset == 0x0000000000000000000000000000000000000000 || _bAsset == basset_1 || _bAsset == basset_2 || _bAsset == basset_3 || _bAsset == basset_4
+        );
+        uint256 ratio = basketManager.getBassetRatio(_bAsset);
+        uint256 oldSum = (ratio * IERC20(_bAsset).balanceOf(msg.sender)) + (balanceOf(msg.sender) * 1e8);
+
+        massetRedeemed = _redeemTo(_bAsset, _bAssetQuantity, msg.sender);
+        checkP1();
+        basketManager.checkP2P5();
+        // P3
+        uint256 sum = (ratio * IERC20(_bAsset).balanceOf(msg.sender)) + (balanceOf(msg.sender) * 1e8);
+        if (!(sum <= oldSum)) {
+            { AssertionFailedHelper memory helper; helper.magic = 0xcafecafecafecafecafecafecafecafecafecafecafecafecafecafecafe0000 + 3; }
+            // assert(false);
+        }
     }
 
     /**
@@ -438,7 +576,22 @@ contract Masset is
         nonReentrant
         returns (uint256 massetRedeemed)
     {
-        return _redeemTo(_bAsset, _bAssetQuantity, _recipient);
+        require(!checkingEnabled || _recipient == 0xafFEaFFEAFfeAfFEAffeaFfEAfFEaffeafFeAFfE || _recipient == 0xAaaaAaAAaaaAAaAAaAaaaaAAAAAaAaaaAaAaaAA0 || _recipient == 0xAaAAAaaAAAAAAaaAAAaaaaAaAaAAAAaAAaAaAaA1 || _recipient == 0xAaAaaAAAaAaaAaAaAaaAAaAaAAAAAaAAAaaAaAa2 || _recipient == 0x0000000000000000000000000000000000000000);
+        require(
+            !checkingEnabled || _bAsset == 0x0000000000000000000000000000000000000000 || _bAsset == basset_1 || _bAsset == basset_2 || _bAsset == basset_3 || _bAsset == basset_4
+        );
+        uint256 ratio = basketManager.getBassetRatio(_bAsset);
+        uint256 oldSum = (ratio * IERC20(_bAsset).balanceOf(_recipient)) + (balanceOf(msg.sender) * 1e8);
+
+        massetRedeemed = _redeemTo(_bAsset, _bAssetQuantity, _recipient);
+        checkP1();
+        basketManager.checkP2P5();
+        // P3
+        uint256 sum = (ratio * IERC20(_bAsset).balanceOf(_recipient)) + (balanceOf(msg.sender) * 1e8);
+        if (!(sum <= oldSum)) {
+            { AssertionFailedHelper memory helper; helper.magic = 0xcafecafecafecafecafecafecafecafecafecafecafecafecafecafecafe0000 + 3; }
+            // assert(false);
+        }
     }
 
     /**
@@ -458,7 +611,10 @@ contract Masset is
         nonReentrant
         returns (uint256 massetRedeemed)
     {
-        return _redeemTo(_bAssets, _bAssetQuantities, _recipient);
+        require(!checkingEnabled || _recipient == 0xafFEaFFEAFfeAfFEAffeaFfEAfFEaffeafFeAFfE || _recipient == 0xAaaaAaAAaaaAAaAAaAaaaaAAAAAaAaaaAaAaaAA0 || _recipient == 0xAaAAAaaAAAAAAaaAAAaaaaAaAaAAAAaAAaAaAaA1 || _recipient == 0xAaAaaAAAaAaaAaAaAaaAAaAaAAAAAaAAAaaAaAa2 || _recipient == 0x0000000000000000000000000000000000000000);
+        massetRedeemed = _redeemTo(_bAssets, _bAssetQuantities, _recipient);
+        checkP1();
+        basketManager.checkP2P5();
     }
 
     /**
@@ -474,7 +630,10 @@ contract Masset is
         external
         nonReentrant
     {
+        require(!checkingEnabled || _recipient == 0xafFEaFFEAFfeAfFEAffeaFfEAfFEaffeafFeAFfE || _recipient == 0xAaaaAaAAaaaAAaAAaAaaaaAAAAAaAaaaAaAaaAA0 || _recipient == 0xAaAAAaaAAAAAAaaAAAaaaaAaAaAAAAaAAaAaAaA1 || _recipient == 0xAaAaaAAAaAaaAaAaAaaAAaAaAAAAAaAAAaaAaAa2 || _recipient == 0x0000000000000000000000000000000000000000);
         _redeemMasset(_mAssetQuantity, _recipient);
+        checkP1();
+        basketManager.checkP2P5();
     }
 
     /***************************************
@@ -669,6 +828,7 @@ contract Masset is
         require(_newForgeValidator != address(0), "Must be non null address");
         forgeValidator = IForgeValidator(_newForgeValidator);
         emit ForgeValidatorChanged(_newForgeValidator);
+        checkP1();
     }
 
     /**
@@ -679,6 +839,7 @@ contract Masset is
         onlyGovernor
     {
         forgeValidatorLocked = true;
+        checkP1();
     }
 
     /**
@@ -693,6 +854,7 @@ contract Masset is
         swapFee = _swapFee;
 
         emit SwapFeeChanged(_swapFee);
+        checkP1();
     }
 
     /**
@@ -729,6 +891,8 @@ contract Masset is
         _mint(msg.sender, interestCollected);
         emit MintedMulti(address(this), address(this), interestCollected, new address[](0), gains);
 
+        checkP1();
+        basketManager.checkP2P5();
         return (interestCollected, totalSupply());
     }
 }

@@ -162,6 +162,8 @@ contract InitializableAbstractIntegration is
      */
     function checkBalance(address _bAsset) external returns (uint256 balance);
 
+    function wasAdded(address _bAsset) external returns (bool);
+
     /***************************************
                     HELPERS
     ****************************************/

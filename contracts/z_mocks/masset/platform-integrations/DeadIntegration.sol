@@ -8,6 +8,7 @@ interface IPlatformIntegration {
 
     function checkBalance(address _bAsset) external returns (uint256 balance);
 
+    function wasAdded(address _bAsset) external returns (bool);
 }
 
 /**
@@ -20,5 +21,9 @@ contract DeadIntegration is IPlatformIntegration{
 
     function checkBalance(address /*_bAsset*/) external returns (uint256 balance) {
         return 0;
+    }
+
+    function wasAdded(address _bAsset) external returns (bool) {
+        return false;
     }
 }

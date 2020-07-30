@@ -36,6 +36,58 @@ contract BasketManager is
     using StableMath for uint256;
     using SafeERC20 for IERC20;
 
+    struct AssertionFailedHelper { uint256 magic; }
+
+    bool private checkingEnabled;
+
+    address private basset_1;
+    address private basset_2;
+    address private basset_3;
+    address private basset_4;
+
+    function enableChecking(address _basset_1, address _basset_2, address _basset_3, address _basset_4) public {
+        require(!checkingEnabled);
+        checkingEnabled = true;
+        basset_1 = _basset_1;
+        basset_2 = _basset_2;
+        basset_3 = _basset_3;
+        basset_4 = _basset_4;
+        bool p = evalP2P5();
+        require(p);
+    }
+
+    function evalP2P5() internal returns (bool) {
+        if (!checkingEnabled) {
+            return true;
+        }
+        uint256 count = basket.bassets.length;
+        for (uint256 i = 0; i < count; i++) {
+            Basset memory b = basket.bassets[i];
+            address integrationAddr = integrations[i];
+            if (integrationAddr == address(0) || integrationAddr == address(1)) {
+                continue;
+            }
+            IPlatformIntegration integration = IPlatformIntegration(integrationAddr);
+            if (!integration.wasAdded(b.addr)) {
+                continue;
+            }
+            uint256 balance = integration.checkBalance(b.addr);
+            if (balance < b.vaultBalance) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function checkP2P5() public {
+        // P2P5
+        bool p = evalP2P5();
+        if (!p) {
+            { AssertionFailedHelper memory helper; helper.magic = 0xcafecafecafecafecafecafecafecafecafecafecafecafecafecafecafe0000 + 2; }
+            // assert(false);
+        }
+    }
+
     // Events for Basket composition changes
     event BassetAdded(address indexed bAsset, address integrator);
     event BassetRemoved(address indexed bAsset);
@@ -95,6 +147,7 @@ contract BasketManager is
             );
         }
         _setBasketWeights(_bAssets, _weights, true);
+        checkP2P5();
     }
 
     /**
@@ -279,12 +332,16 @@ contract BasketManager is
         whenNotRecolling
         returns (uint8 index)
     {
+        require(
+            !checkingEnabled || _bAsset == 0x0000000000000000000000000000000000000000 || _bAsset == basset_1 || _bAsset == basset_2 || _bAsset == basset_3 || _bAsset == basset_4
+        );
         index = _addBasset(
             _bAsset,
             _integration,
             StableMath.getRatioScale(),
             _isTransferFeeCharged
         );
+        checkP2P5();
     }
 
     /**
@@ -356,6 +413,7 @@ contract BasketManager is
         whenBasketIsHealthy
     {
         _setBasketWeights(_bAssets, _weights, false);
+        checkP2P5();
     }
 
     /**
@@ -426,11 +484,15 @@ contract BasketManager is
         external
         managerOrGovernor
     {
+        require(
+            !checkingEnabled || _bAsset == 0x0000000000000000000000000000000000000000 || _bAsset == basset_1 || _bAsset == basset_2 || _bAsset == basset_3 || _bAsset == basset_4
+        );
         (bool exist, uint8 index) = _isAssetInBasket(_bAsset);
         require(exist, "bAsset does not exist");
         basket.bassets[index].isTransferFeeCharged = _flag;
 
         emit TransferFeeEnabled(_bAsset, _flag);
+        checkP2P5();
     }
 
 
@@ -445,7 +507,11 @@ contract BasketManager is
         whenNotRecolling
         managerOrGovernor
     {
+        require(
+            !checkingEnabled || _assetToRemove == 0x0000000000000000000000000000000000000000 || _assetToRemove == basset_1 || _assetToRemove == basset_2 || _assetToRemove == basset_3 || _assetToRemove == basset_4
+        );
         _removeBasset(_assetToRemove);
+        checkP2P5();
     }
 
     /**
@@ -522,6 +588,7 @@ contract BasketManager is
             integrator: integrations[idx],
             index: idx
         });
+        checkP2P5();
     }
 
     /**
@@ -601,6 +668,7 @@ contract BasketManager is
             integrators: integrators,
             indexes: indexes
         });
+        checkP2P5();
     }
 
     /**
@@ -685,6 +753,18 @@ contract BasketManager is
         )
     {
         return _getBassets();
+    }
+
+    function getBassetRatio(address _bAsset)
+        external
+        view
+        returns (uint256)
+    {
+        (bool exists, uint8 index) = _isAssetInBasket(_bAsset);
+        if (exists) {
+            return _getBasset(index).ratio;
+        }
+        return 0;
     }
 
     /**
@@ -798,7 +878,10 @@ contract BasketManager is
         managerOrGovernor
         whenBasketIsHealthy
         returns (bool alreadyActioned)
-    {
+    {        
+        require(
+            !checkingEnabled || _bAsset == 0x0000000000000000000000000000000000000000 || _bAsset == basset_1 || _bAsset == basset_2 || _bAsset == basset_3 || _bAsset == basset_4
+        );
         (bool exists, uint256 i) = _isAssetInBasket(_bAsset);
         require(exists, "bAsset must exist in Basket");
 
@@ -807,12 +890,14 @@ contract BasketManager is
             _belowPeg ? BassetStatus.BrokenBelowPeg : BassetStatus.BrokenAbovePeg;
 
         if(oldStatus == newStatus || _bAssetHasRecolled(oldStatus)) {
+            checkP2P5();
             return true;
         }
 
         // If we need to update the status.. then do it
         basket.bassets[i].status = newStatus;
         emit BassetStatusChanged(_bAsset, newStatus);
+        checkP2P5();
         return false;
     }
 
@@ -824,6 +909,9 @@ contract BasketManager is
         external
         managerOrGovernor
     {
+        require(
+            !checkingEnabled || _bAsset == 0x0000000000000000000000000000000000000000 || _bAsset == basset_1 || _bAsset == basset_2 || _bAsset == basset_3 || _bAsset == basset_4
+        );
         (bool exists, uint256 i) = _isAssetInBasket(_bAsset);
         require(exists, "bAsset must exist");
 
@@ -834,6 +922,7 @@ contract BasketManager is
             basket.bassets[i].status = BassetStatus.Normal;
             emit BassetStatusChanged(_bAsset, BassetStatus.Normal);
         }
+        checkP2P5();
     }
 
     /**
@@ -844,6 +933,9 @@ contract BasketManager is
         external
         onlyGovernor
     {
+        require(
+            !checkingEnabled || _bAsset == 0x0000000000000000000000000000000000000000 || _bAsset == basset_1 || _bAsset == basset_2 || _bAsset == basset_3 || _bAsset == basset_4
+        );
         (bool exists, uint256 i) = _isAssetInBasket(_bAsset);
         require(exists, "bAsset must exist");
 
@@ -854,5 +946,6 @@ contract BasketManager is
             "bAsset must be affected"
         );
         basket.failed = true;
+        checkP2P5();
     }
 }

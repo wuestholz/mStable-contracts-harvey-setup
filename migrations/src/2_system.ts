@@ -79,6 +79,10 @@ async function loadBassetsLocal(
     artifacts: Truffle.Artifacts,
     deployer,
 ): Promise<BassetIntegrationDetails> {
+    const mythx_account0 = "0xAaaaAaAAaaaAAaAAaAaaaaAAAAAaAaaaAaAaaAA0";
+    const mythx_account1 = "0xAaAaaAAAaAaaAaAaAaaAAaAaAAAAAaAAAaaAaAa2";
+    const mythx_account2 = "0xafFEaFFEAFfeAfFEAffeaFfEAfFEaffeafFeAFfE";
+
     const c_MockERC20 = artifacts.require("MockERC20");
     const c_MockAave = artifacts.require("MockAave");
     const c_MockAToken = artifacts.require("MockAToken");
@@ -88,6 +92,24 @@ async function loadBassetsLocal(
     const mockBasset2 = await c_MockERC20.new("Mock2", "MK2", 18, deployer, 100000000);
     const mockBasset3 = await c_MockERC20.new("Mock3", "MK3", 6, deployer, 100000000);
     const mockBasset4 = await c_MockERC20.new("Mock4", "MK4", 18, deployer, 100000000);
+
+    // We mint some tokens.
+    const mintAmount = 1000000000;
+    await mockBasset1.mint(mythx_account0, mintAmount, { from: deployer, });
+    await mockBasset1.mint(mythx_account1, mintAmount, { from: deployer, });
+    await mockBasset1.mint(mythx_account2, mintAmount, { from: deployer, });
+
+    await mockBasset2.mint(mythx_account0, mintAmount, { from: deployer, });
+    await mockBasset2.mint(mythx_account1, mintAmount, { from: deployer, });
+    await mockBasset2.mint(mythx_account2, mintAmount, { from: deployer, });
+
+    await mockBasset3.mint(mythx_account0, mintAmount, { from: deployer, });
+    await mockBasset3.mint(mythx_account1, mintAmount, { from: deployer, });
+    await mockBasset3.mint(mythx_account2, mintAmount, { from: deployer, });
+
+    await mockBasset4.mint(mythx_account0, mintAmount, { from: deployer, });
+    await mockBasset4.mint(mythx_account1, mintAmount, { from: deployer, });
+    await mockBasset4.mint(mythx_account2, mintAmount, { from: deployer, });
 
     //  - Mock Aave integration
     const d_MockAave = await c_MockAave.new({ from: deployer });
@@ -104,6 +126,17 @@ async function loadBassetsLocal(
 
     // Mock C Token
     const mockCToken4 = await c_MockCToken.new(mockBasset4.address);
+
+    console.log(`[Mock1]: '${mockBasset1.address}'`);
+    console.log(`[Mock2]: '${mockBasset2.address}'`);
+    console.log(`[Mock3]: '${mockBasset3.address}'`);
+    console.log(`[Mock4]: '${mockBasset4.address}'`);
+    console.log(`[MockAToken1]: '${mockAToken1.address}'`);
+    console.log(`[MockAToken2]: '${mockAToken2.address}'`);
+    console.log(`[MockAToken3]: '${mockAToken3.address}'`);
+    console.log(`[MockAave]: '${d_MockAave.address}'`);
+    console.log(`[MockCToken]: '${mockCToken4.address}'`);
+
     return {
         bAssets: [mockBasset1, mockBasset2, mockBasset3, mockBasset4],
         platforms: [Platform.aave, Platform.aave, Platform.aave, Platform.compound],
@@ -186,6 +219,10 @@ export default async (
 
     const [default_, governor] = accounts;
     const newGovernor = governor; // This should be an external multisig
+    
+    console.log(`[GovernorUser]: '${governor}'`);
+    console.log(`[DefaultUser]: '${default_}'`);
+
     let bassetDetails: BassetIntegrationDetails;
     if (deployer.network === "ropsten") {
         console.log("Loading Ropsten bAssets and lending platforms");
@@ -378,6 +415,10 @@ export default async (
         from: governor,
     });
 
+    console.log(`[Nexus]: '${d_Nexus.address}'`);
+    console.log(`[ForgeValidator]: '${d_ForgeValidator.address}'`);
+    console.log(`[DelayedProxyAdmin]: '${d_DelayedProxyAdmin.address}'`);
+
     console.log(`[mUSD]: '${d_mUSDProxy.address}'`);
     console.log(`[mUSD impl]: '${d_mUSD.address}'`);
     console.log(`[BasketManager]: '${d_BasketManagerProxy.address}'`);
@@ -386,4 +427,23 @@ export default async (
     console.log(`[CompoundIntegration]: '${d_CompoundIntegrationProxy.address}'`);
     console.log(`[SavingsManager]: '${d_SavingsManager.address}'`);
     console.log(`[SavingsContract]: '${d_SavingsContract.address}'`);
+
+    const c_harveySetup = artifacts.require("HarveySetup");
+    await deployer.deploy(c_harveySetup, {
+        from: default_,
+        value: "10000000000000000000",
+    });
+    const d_harveySetup = await c_harveySetup.deployed();
+    await d_harveySetup.run(d_AaveIntegrationProxy.address, d_CompoundIntegrationProxy.address, d_mUSDProxy.address, d_BasketManagerProxy.address, bassetDetails.bAssets[0].address, bassetDetails.bAssets[1].address, bassetDetails.bAssets[2].address, bassetDetails.bAssets[3].address);
+    // We approve mUSD.
+    const mythx_account0 = "0xAaaaAaAAaaaAAaAAaAaaaaAAAAAaAaaaAaAaaAA0";
+    const mythx_account1 = "0xAaAaaAAAaAaaAaAaAaaAAaAaAAAAAaAAAaaAaAa2";
+    const mythx_account2 = "0xafFEaFFEAFfeAfFEAffeaFfEAfFEaffeafFeAFfE";
+    const approveAmount = 500000000;
+    const mUSDAddr = d_mUSDProxy.address;
+    for (const bAsset of bassetDetails.bAssets) {
+        await bAsset.approve(mUSDAddr, approveAmount, { from: mythx_account0, });
+        await bAsset.approve(mUSDAddr, approveAmount, { from: mythx_account1, });
+        await bAsset.approve(mUSDAddr, approveAmount, { from: mythx_account2, });
+    }
 };

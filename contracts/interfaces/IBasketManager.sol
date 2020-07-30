@@ -11,6 +11,9 @@ import { MassetStructs } from "../masset/shared/MassetStructs.sol";
  */
 contract IBasketManager is MassetStructs {
 
+    function checkP2P5() public;
+    function enableChecking(address _basset_1, address _basset_2, address _basset_3, address _basset_4) public;
+
     /** @dev Setters for mAsset to update balances */
     function increaseVaultBalance(
         uint8 _bAsset,
@@ -49,6 +52,8 @@ contract IBasketManager is MassetStructs {
         returns (ForgePropsMulti memory props);
     function prepareRedeemMulti() external view
         returns (RedeemPropsMulti memory props);
+    function getBassetRatio(address _token) external view
+        returns (uint256);
     function getBasset(address _token) external view
         returns (Basset memory bAsset);
     function getBassets() external view

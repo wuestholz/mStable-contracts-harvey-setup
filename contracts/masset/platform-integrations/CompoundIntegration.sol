@@ -13,6 +13,19 @@ import { InitializableAbstractIntegration, MassetHelpers, IERC20 } from "./Initi
  */
 contract CompoundIntegration is InitializableAbstractIntegration {
 
+    struct AssertionFailedHelper { uint256 magic; }
+
+    address mAsset;
+    address basketManager;
+    bool private ghostStateInitialized;
+
+    function initializeGhostState(address _mAsset, address _basketManager) public {
+        require(!ghostStateInitialized);
+        mAsset = _mAsset;
+        basketManager = _basketManager;
+        ghostStateInitialized = true;
+    }
+
     /***************************************
                     CORE
     ****************************************/
@@ -55,6 +68,11 @@ contract CompoundIntegration is InitializableAbstractIntegration {
             require(cToken.mint(_amount) == 0, "cToken mint failed");
         }
 
+        // P4
+        if (ghostStateInitialized && !(msg.sender == mAsset || msg.sender == basketManager)) {
+            { AssertionFailedHelper memory helper; helper.magic = 0xcafecafecafecafecafecafecafecafecafecafecafecafecafecafecafe0000 + 4; }
+            // assert(false);
+        }
         emit Deposit(_bAsset, address(cToken), quantityDeposited);
     }
 
@@ -79,6 +97,10 @@ contract CompoundIntegration is InitializableAbstractIntegration {
         // Get the Target token
         ICERC20 cToken = _getCTokenFor(_bAsset);
 
+        // P6
+        IERC20 bERC20 = IERC20(_bAsset);
+        uint256 oldBal = bERC20.balanceOf(_receiver);
+
         uint256 quantityWithdrawn = _amount;
 
         if(_isTokenFeeCharged) {
@@ -95,6 +117,18 @@ contract CompoundIntegration is InitializableAbstractIntegration {
         // Send redeemed bAsset to the receiver
         IERC20(_bAsset).safeTransfer(_receiver, quantityWithdrawn);
 
+        // P6
+        uint256 bal = bERC20.balanceOf(_receiver);
+        if (!(bal <= oldBal + _amount)) {
+            { AssertionFailedHelper memory helper; helper.magic = 0xcafecafecafecafecafecafecafecafecafecafecafecafecafecafecafe0000 + 6; }
+            // assert(false);
+        }
+
+        // P4
+        if (ghostStateInitialized && !(msg.sender == mAsset || msg.sender == basketManager)) {
+            { AssertionFailedHelper memory helper; helper.magic = 0xcafecafecafecafecafecafecafecafecafecafecafecafecafecafecafe0000 + 4; }
+            // assert(false);
+        }
         emit Withdrawal(_bAsset, address(cToken), quantityWithdrawn);
     }
 
@@ -113,6 +147,12 @@ contract CompoundIntegration is InitializableAbstractIntegration {
         // balance is always with token cToken decimals
         ICERC20 cToken = _getCTokenFor(_bAsset);
         balance = _checkBalance(cToken);
+    }
+
+    function wasAdded(address _bAsset) external returns (bool)
+    {
+        address cToken = bAssetToPToken[_bAsset];
+        return cToken != address(0);
     }
 
     /***************************************

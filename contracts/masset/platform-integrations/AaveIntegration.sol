@@ -13,6 +13,19 @@ import { InitializableAbstractIntegration, MassetHelpers, IERC20 } from "./Initi
  */
 contract AaveIntegration is InitializableAbstractIntegration {
 
+    struct AssertionFailedHelper { uint256 magic; }
+
+    address mAsset;
+    address basketManager;
+    bool private ghostStateInitialized;
+
+    function initializeGhostState(address _mAsset, address _basketManager) public {
+        require(!ghostStateInitialized);
+        mAsset = _mAsset;
+        basketManager = _basketManager;
+        ghostStateInitialized = true;
+    }
+
     /***************************************
                     CORE
     ****************************************/
@@ -56,6 +69,11 @@ contract AaveIntegration is InitializableAbstractIntegration {
             _getLendingPool().deposit(_bAsset, _amount, referralCode);
         }
 
+        // P4
+        if (ghostStateInitialized && !(msg.sender == mAsset || msg.sender == basketManager)) {
+            { AssertionFailedHelper memory helper; helper.magic = 0xcafecafecafecafecafecafecafecafecafecafecafecafecafecafecafe0000 + 4; }
+            // assert(false);
+        }
         emit Deposit(_bAsset, address(aToken), quantityDeposited);
     }
 
@@ -80,6 +98,10 @@ contract AaveIntegration is InitializableAbstractIntegration {
         // Get the Target token
         IAaveAToken aToken = _getATokenFor(_bAsset);
 
+        // P6
+        IERC20 bERC20 = IERC20(_bAsset);
+        uint256 oldBal = bERC20.balanceOf(_receiver);
+
         uint256 quantityWithdrawn = _amount;
 
         // Don't need to Approve aToken, as it gets burned in redeem()
@@ -96,6 +118,18 @@ contract AaveIntegration is InitializableAbstractIntegration {
         // Send redeemed bAsset to the receiver
         IERC20(_bAsset).safeTransfer(_receiver, quantityWithdrawn);
 
+        // P6
+        uint256 bal = bERC20.balanceOf(_receiver);
+        if (!(bal <= oldBal + _amount)) {
+            { AssertionFailedHelper memory helper; helper.magic = 0xcafecafecafecafecafecafecafecafecafecafecafecafecafecafecafe0000 + 6; }
+            // assert(false);
+        }
+
+        // P4
+        if (ghostStateInitialized && !(msg.sender == mAsset || msg.sender == basketManager)) {
+            { AssertionFailedHelper memory helper; helper.magic = 0xcafecafecafecafecafecafecafecafecafecafecafecafecafecafecafe0000 + 4; }
+            // assert(false);
+        }
         emit Withdrawal(_bAsset, address(aToken), quantityWithdrawn);
     }
 
@@ -113,6 +147,12 @@ contract AaveIntegration is InitializableAbstractIntegration {
         // balance is always with token aToken decimals
         IAaveAToken aToken = _getATokenFor(_bAsset);
         return _checkBalance(aToken);
+    }
+
+    function wasAdded(address _bAsset) external returns (bool)
+    {
+        address aToken = bAssetToPToken[_bAsset];
+        return aToken != address(0);
     }
 
     /***************************************

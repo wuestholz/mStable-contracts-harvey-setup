@@ -50,4 +50,7 @@ contract MockCompoundIntegration2 is CompoundIntegration {
         balance = bal;
     }
 
+    function wasAdded(address _bAsset) external returns (bool) {
+        return false;
+    }
 }

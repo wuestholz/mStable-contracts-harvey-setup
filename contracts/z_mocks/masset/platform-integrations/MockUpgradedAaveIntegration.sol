@@ -76,6 +76,11 @@ contract AaveIntegrationV2 is InitializableAbstractIntegration {
         return _checkBalance(aToken).add(100);
     }
 
+    function wasAdded(address _bAsset) external returns (bool)
+    {
+        address aToken = bAssetToPToken[_bAsset];
+        return aToken != address(0);
+    }
 
     /***************************************
                     APPROVALS
@@ -242,6 +247,11 @@ contract AaveIntegrationV3 is InitializableAbstractIntegration {
         return _checkBalance(aToken).add(100);
     }
 
+    function wasAdded(address _bAsset) external returns (bool)
+    {
+        address aToken = bAssetToPToken[_bAsset];
+        return aToken != address(0);
+    }
 
     /***************************************
                     APPROVALS

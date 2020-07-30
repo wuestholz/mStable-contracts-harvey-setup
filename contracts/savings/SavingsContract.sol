@@ -27,6 +27,8 @@ contract SavingsContract is ISavingsContract, Module {
     using SafeMath for uint256;
     using StableMath for uint256;
 
+    struct AssertionFailedHelper { uint256 magic; }
+
     // Core events for depositing and withdrawing
     event ExchangeRateUpdated(uint256 newExchangeRate, uint256 interestCollected);
     event SavingsDeposited(address indexed saver, uint256 savingsDeposited, uint256 creditsIssued);
@@ -100,7 +102,16 @@ contract SavingsContract is ISavingsContract, Module {
             // exchangeRate = totalSavings/totalCredits
             // e.g. (100e18 * 1e18) / 100e18 = 1e18
             // e.g. (101e20 * 1e18) / 100e20 = 1.01e18
+
+            uint256 oldExchangeRate = exchangeRate;
+
             exchangeRate = totalSavings.divPrecisely(totalCredits);
+
+            // P7
+            if (!(oldExchangeRate <= exchangeRate)) {
+                { AssertionFailedHelper memory helper; helper.magic = 0xcafecafecafecafecafecafecafecafecafecafecafecafecafecafecafe0000 + 7; }
+                // assert(false);
+            }
 
             emit ExchangeRateUpdated(exchangeRate, _amount);
         }
